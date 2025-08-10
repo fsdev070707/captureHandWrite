@@ -4,6 +4,13 @@ import tensorflow as tf
 from tensorflow.keras import layers, models
 from .config import DEFAULT_MODEL_PATH
 
+def predict_topk(x, k=3):
+    m = load_or_train(DEFAULT_MODEL_PATH)
+    probs = m.predict(x, verbose=0)[0]
+    idxs = np.argsort(-probs)[:k]
+    return [(int(i), float(probs[i])) for i in idxs]
+
+
 def build_cnn(input_shape=(28,28,1), num_classes=10):
     inputs = layers.Input(shape=input_shape)
     x = layers.Conv2D(16, 3, activation="relu", padding="same")(inputs)

@@ -12,14 +12,33 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
+from .model import predict_topk
 
-BRUSH_SIZE = 12
+
+BRUSH_SIZE = 18  # or 20
 CANVAS_SIZE = 280
 BG_COLOR = "black"
 FG_COLOR = "white"
 
 
 class DrawApp(tk.Tk):
+def on_predict(self):
+    x = pil_to_mnist_tensor(self.img)
+    # guard: ensure correct type/shape and not all zeros
+    if x is None or not hasattr(x, "shape") or x.shape != (1, 28, 28, 1):
+        self.pred_var.set("Prediction: (no input)")
+        return
+    if float(x.sum()) < 1e-6:
+        self.pred_var.set("Prediction: (draw something)")
+        return
+    from .model import predict_topk  # if you added it
+    try:
+        top3 = predict_topk(x, k=3)
+        self.pred_var.set("Prediction: " + ", ".join([f"{d} ({p:.2f})" for d,p in top3]))
+    except Exception as e:
+        self.pred_var.set(f"Error: {e}")
+
+
     def __init__(self):
         super().__init__()
         self.title("captureHandWriteTF - Draw")
@@ -28,6 +47,7 @@ class DrawApp(tk.Tk):
         self.canvas = tk.Canvas(self, width=CANVAS_SIZE, height=CANVAS_SIZE, bg=BG_COLOR, cursor="cross")
         self.canvas.grid(row=0, column=0, columnspan=4, padx=10, pady=10)
 
+        tk.Button(self, text="View 28x28", command=self.view_28x28).grid(row=1, column=5, padx=5, pady=5, sticky="ew")
         tk.Button(self, text="MNIST Samples", command=self.show_mnist).grid(row=1, column=4, padx=5, pady=5, sticky="ew")
         tk.Button(self, text="Predict", command=self.on_predict).grid(row=1, column=0, sticky="ew", padx=5, pady=5)
         tk.Button(self, text="Clear", command=self.clear_canvas).grid(row=1, column=1, sticky="ew", padx=5, pady=5)
@@ -40,6 +60,14 @@ class DrawApp(tk.Tk):
         self.canvas.bind("<B1-Motion>", self.on_move)
         self.canvas.bind("<ButtonRelease-1>", self.on_up)
         self.ensure_model()
+
+    def view_28x28(self):
+        x = pil_to_mnist_tensor(self.img)[0, ..., 0]
+        plt.figure(figsize=(3,3))
+        plt.imshow(x, cmap="gray", vmin=0, vmax=1)
+        plt.title("Model Input (28x28)")
+        plt.axis("off")
+        plt.show()
 
     def show_mnist(self):
         (x_train, y_train), _ = tf.keras.datasets.mnist.load_data()
